@@ -275,39 +275,32 @@
         }
 
         /* Decorator Visuals */
+        .badge-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            justify-content: center;
+            margin: 5px 0 10px 0;
+            min-height: 20px;
+        }
+
         .augment-badge {
-            position: absolute;
-            font-size: 14px;
-            background: var(--dark-bg);
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.8);
             border: 1px solid var(--neon-pink);
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
+            border-radius: 12px;
+            padding: 2px 6px;
             display: flex;
             align-items: center;
-            justify-content: center;
+            gap: 4px;
             animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            white-space: nowrap;
         }
 
-        /* Positioning augments around the avatar */
-        .unit-avatar .augment-badge:nth-child(2) {
-            top: -5px;
-            right: -10px;
-        }
-
-        .unit-avatar .augment-badge:nth-child(3) {
-            bottom: -5px;
-            right: -10px;
-        }
-
-        .unit-avatar .augment-badge:nth-child(4) {
-            top: -5px;
-            left: -10px;
-        }
-
-        .unit-avatar .augment-badge:nth-child(5) {
-            bottom: -5px;
-            left: -10px;
+        .badge-count {
+            font-size: 0.75rem;
+            color: var(--neon-blue);
+            font-weight: bold;
         }
 
         @keyframes popIn {
@@ -646,31 +639,7 @@
                 // Replace in array
                 this.activeUnits[idx] = targetUnit;
 
-                // Visual Flair: Add badge to the selected DOM element
-                this.addVisualAugment(augmentInfo.icon);
-
                 this.updateField();
-            },
-
-            addVisualAugment(icon) {
-                // Just for visual effect finding the current DOM node
-                // In a real framework (React), the render() method would handle this recursive structure
-                // Here we cheat slightly by re-rendering the whole field, but we *could* just inject DOM
-
-                // Because we re-render field immediately, we need a way to persist "visual badges" 
-                // In this simple demo, we'll let the render loop handle stats, 
-                // but we might lose the 'badges' unless we store them on the Unit object (or decorator)
-                // Let's modify the decorator class to store icons? 
-                // For simplicity in this demo, we'll assume the 'Unit' logic handles base render, 
-                // and we'll rely on the updateField to show new STATS, 
-                // but maybe we want to see the icons floating?
-
-                // Let's attach metadata to the object chain for rendering badges
-                // (Quick hack for the visual demo)
-                if (!this.activeUnits.find(u => u.id === this.selectedUnitId).visualBadges) {
-                    this.activeUnits.find(u => u.id === this.selectedUnitId).visualBadges = [];
-                }
-                this.activeUnits.find(u => u.id === this.selectedUnitId).visualBadges.push(icon);
             },
 
             updateField() {
@@ -678,47 +647,75 @@
                 field.innerHTML = '';
 
                 this.activeUnits.forEach(unitObj => {
-                    // Logic to extract base properties + wrapped decorators
-                    // In a strict pattern, the Decorator would contain its own render(). 
-                    // Let's respect the pattern: we call unitObj.render()?
-                    // But our base Unit.render() is hardcoded. 
-                    // We can implement a recursive render or just render the component normally 
-                    // and update the text content with the specific stats from the wrapper.
-
-                    // 1. Render Base visual (we need the underlying ID/icon from the base unit)
-                    // We can crawl down the chain or just rely on the fact that decorators forward calls?
-                    // We didn't implement 'getIcon' on decorators, so let's navigate:
+                    // 1. Traverse chain to collect data (Base + Decorators)
                     let crawler = unitObj;
-                    while (crawler['unit']) { crawler = crawler.unit; } // find base
+                    const decorationList = []; // Array of { name, icon }
 
-                    // Use the base render
-                    const el = crawler.render();
+                    while (crawler['unit']) {
+                        // It's a decorator
+                        decorationList.push({ name: crawler.name, icon: crawler.icon || getIconForName(crawler.name) });
+                        crawler = crawler.unit;
+                    }
+                    // Now crawler is the Base Unit
+                    const baseUnit = crawler;
 
-                    // 2. Update Stats (using the TOP LEVEL object which might be a decorator)
+                    // Helper to match icon from name if not stored (UI helper)
+                    function getIconForName(name) {
+                        const found = App.decorators.find(d => d.name === name);
+                        return found ? found.icon : '🔧';
+                    }
+
+                    // 2. Render Base
+                    const el = baseUnit.render();
+
+                    // 3. Process Decorations for Display (Grouping)
+                    const counts = {};
+                    decorationList.forEach(item => {
+                        if (!counts[item.name]) counts[item.name] = { count: 0, icon: item.icon };
+                        counts[item.name].count++;
+                    });
+
+                    // Update UI Name (Simplified)
+                    el.querySelector('.unit-name').innerText = baseUnit.getDescription();
+
+                    // Update UI Stats
                     const statBox = el.querySelector('.unit-stats');
                     statBox.innerHTML = `
                         <span style="color:#ff5555">⚔️ ${unitObj.getAttack()}</span>
                         <span style="color:#55aaff">🛡️ ${unitObj.getDefense()}</span>
                     `;
 
-                    // 3. Selection State
+                    // 4. Update UI Badges (Smart Grouping)
+                    const avatar = el.querySelector('.unit-avatar');
+                    // Clear old badges if any (though render() creates fresh)
+
+                    // Layout badges in a grid/flex below or around avatar
+                    // Let's create a badge container to keep them organized
+                    // Layout badges in a grid/flex below or around avatar
+                    // Let's create a badge container to keep them organized
+                    let badgeContainer = el.querySelector('.badge-wrapper');
+                    if (!badgeContainer) {
+                        badgeContainer = document.createElement('div');
+                        badgeContainer.className = 'badge-wrapper';
+                        // Insert after avatar
+                        el.insertBefore(badgeContainer, el.querySelector('.unit-name'));
+                    }
+
+                    Object.keys(counts).forEach(name => {
+                        const data = counts[name];
+                        const badge = document.createElement('div');
+                        badge.className = 'augment-badge';
+                        badge.innerHTML = `${data.icon}${data.count > 1 ? '<span class="badge-count">' + data.count + '</span>' : ''}`;
+                        badge.title = name;
+                        badgeContainer.appendChild(badge);
+                    });
+
+                    // 5. Selection State
                     if (unitObj.id === this.selectedUnitId) {
                         el.classList.add('selected');
                     }
 
-                    // 4. Visual Badges (Hack for visuals)
-                    // If the object chain (or base) has badges attached
-                    if (crawler.visualBadges) {
-                        const avatar = el.querySelector('.unit-avatar');
-                        crawler.visualBadges.forEach(icon => {
-                            const badge = document.createElement('div');
-                            badge.className = 'augment-badge';
-                            badge.innerText = icon;
-                            avatar.appendChild(badge);
-                        });
-                    }
-
-                    // Click to Select
+                    // Click Handler
                     el.onclick = () => {
                         this.selectedUnitId = unitObj.id;
                         this.updateField();
