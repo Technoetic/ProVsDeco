@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>패턴 전쟁: 프로토타입 vs 데코레이터</title>
+    <style>
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-pink: #ff00ff;
+            --neon-green: #00ff41;
+            --dark-bg: #0a0a12;
+            --panel-bg: rgba(20, 20, 30, 0.7);
+            --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+            --text-main: #e0e0e0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--dark-bg);
+            color: var(--text-main);
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-image:
+                linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+
+        header {
+            padding: 1rem 2rem;
+            border-bottom: var(--glass-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(10, 10, 18, 0.9);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.1);
+        }
+
+        h1 {
+            margin: 0;
+            font-weight: 300;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            background: linear-gradient(90deg, var(--neon-blue), var(--neon-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
+        }
+
+        /* Layout */
+        .workspace {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border: var(--glass-border);
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .panel-header {
+            border-bottom: 2px solid;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Column Specifics */
+        .col-prototype {
+            flex: 1;
+            border-color: var(--neon-blue);
+        }
+
+        .col-prototype .panel-header {
+            color: var(--neon-blue);
+            border-color: var(--neon-blue);
+        }
+
+        .col-field {
+            flex: 2;
+            background: rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.2);
+            position: relative;
+        }
+
+        .col-field .panel-header {
+            color: #fff;
+            border-color: #fff;
+            justify-content: space-between;
+        }
+
+        .col-decorator {
+            flex: 1;
+            border-color: var(--neon-pink);
+        }
+
+        .col-decorator .panel-header {
+            color: var(--neon-pink);
+            border-color: var(--neon-pink);
+        }
+
+        /* Items */
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .card:hover {
+            transform: translateX(5px);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .card-icon {
+            font-size: 24px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 50%;
+        }
+
+        .card-info {
+            flex: 1;
+        }
+
+        .card-title {
+            font-weight: bold;
+            display: block;
+        }
+
+        .card-desc {
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+
+        /* Buttons */
+        .btn {
+            background: transparent;
+            border: 1px solid;
+            padding: 8px 16px;
+            border-radius: 4px;
+            color: inherit;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+            font-weight: bold;
+        }
+
+        .btn-clone {
+            border-color: var(--neon-blue);
+            color: var(--neon-blue);
+            margin-top: auto;
+        }
+
+        .btn-clone:hover {
+            background: var(--neon-blue);
+            color: #000;
+            box-shadow: 0 0 15px var(--neon-blue);
+        }
+
+        .btn-decorate {
+            border-color: var(--neon-pink);
+            color: var(--neon-pink);
+            margin-top: auto;
+        }
+
+        .btn-decorate:hover {
+            background: var(--neon-pink);
+            color: #000;
+            box-shadow: 0 0 15px var(--neon-pink);
+        }
+
+        .btn-decorate:disabled {
+            border-color: #555;
+            color: #555;
+            cursor: not-allowed;
+            box-shadow: none;
+            background: none;
+        }
+
+        .scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        /* Field Units */
+        .unit-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 15px;
+            align-content: start;
+        }
+
+        .unit {
+            background: rgba(0, 20, 40, 0.8);
+            border: 1px solid var(--neon-blue);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            position: relative;
+            transition: all 0.3s;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.1);
+        }
+
+        .unit.selected {
+            border-color: #fff;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+            transform: scale(1.05);
+            z-index: 10;
+        }
+
+        .unit-avatar {
+            font-size: 40px;
+            margin-bottom: 10px;
+            position: relative;
+            display: inline-block;
+        }
+
+        .unit-stats {
+            font-size: 0.8rem;
+            color: #ccc;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px;
+            border-radius: 4px;
+            margin-top: 5px;
+            display: flex;
+            justify-content: space-around;
+        }
+
+        /* Decorator Visuals */
+        .augment-badge {
+            position: absolute;
+            font-size: 14px;
+            background: var(--dark-bg);
+            border: 1px solid var(--neon-pink);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* Positioning augments around the avatar */
+        .unit-avatar .augment-badge:nth-child(2) {
+            top: -5px;
+            right: -10px;
+        }
+
+        .unit-avatar .augment-badge:nth-child(3) {
+            bottom: -5px;
+            right: -10px;
+        }
+
+        .unit-avatar .augment-badge:nth-child(4) {
+            top: -5px;
+            left: -10px;
+        }
+
+        .unit-avatar .augment-badge:nth-child(5) {
+            bottom: -5px;
+            left: -10px;
+        }
+
+        @keyframes popIn {
+            from {
+                transform: scale(0);
+            }
+
+            to {
+                transform: scale(1);
+            }
+        }
+
+        @keyframes cloneSpawn {
+            from {
+                opacity: 0;
+                transform: scale(0.5) translateY(20px);
+                filter: blur(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+                filter: blur(0);
+            }
+        }
+
+        .unit.spawning {
+            animation: cloneSpawn 0.6s ease-out forwards;
+        }
+
+        /* Insight Panel */
+        .insight-panel {
+            min-height: 150px;
+            border-top: var(--glass-border);
+            background: rgba(0, 0, 0, 0.6);
+            padding: 20px 40px;
+            display: flex;
+            gap: 40px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .insight-box {
+            flex: 1;
+            max-width: 600px;
+        }
+
+        .insight-title {
+            color: #fff;
+            margin-bottom: 5px;
+            font-size: 1.1rem;
+        }
+
+        .insight-text {
+            color: #aaa;
+            line-height: 1.5;
+            font-size: 0.9rem;
+        }
+
+        .code-snippet {
+            font-family: 'Consolas', monospace;
+            background: #111;
+            color: #ddd;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #333;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>팩토리 <span style="font-size: 0.7em; color: #555; vertical-align: middle; margin: 0 10px;">//</span> 코어
+        </h1>
+        <div style="font-size: 0.9rem; color: #888;">시스템 상태: <span style="color: var(--neon-green)">온라인</span>
+        </div>
+    </header>
+
+    <div class="workspace">
+        <!-- PROTOTYPE SECTION -->
+        <div class="panel col-prototype">
+            <div class="panel-header">
+                <span>01 // 프로토타입 레지스트리</span>
+            </div>
+            <div class="scroll-area" id="prototypeList">
+                <!-- Templates generated by JS -->
+            </div>
+        </div>
+
+        <!-- ACTIVE FIELD SECTION -->
+        <div class="panel col-field">
+            <div class="panel-header">
+                <span>02 // 활성 유닛</span>
+                <span style="font-size: 0.8rem; font-weight: normal; color: #aaa;">강화할 유닛을 선택하세요</span>
+            </div>
+            <div class="scroll-area unit-grid" id="field">
+                <!-- Clones appear here -->
+            </div>
+        </div>
+
+        <!-- DECORATOR SECTION -->
+        <div class="panel col-decorator">
+            <div class="panel-header">
+                <span>03 // 강화 스테이션</span>
+            </div>
+            <div class="scroll-area" id="decoratorList">
+                <!-- Decorators generated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <div class="insight-panel">
+        <div class="insight-box">
+            <div class="insight-title" style="color: var(--neon-blue)">프로토타입 패턴 (Prototype)</div>
+            <div class="insight-text">
+                기존 인스턴스(프로토타입)를 복제하여 새로운 객체를 생성합니다.
+                <br>매번 <span class="code-snippet">new Soldier()</span>로 새로 설정하는 대신, <span
+                    class="code-snippet">soldier.clone()</span>을 호출합니다.
+                <br>표준 초기화 비용 없이 유사한 객체를 대량 생산할 때 효율적입니다.
+            </div>
+        </div>
+        <div style="width: 1px; height: 80px; background: rgba(255,255,255,0.1);"></div>
+        <div class="insight-box">
+            <div class="insight-title" style="color: var(--neon-pink)">데코레이터 패턴 (Decorator)</div>
+            <div class="insight-text">
+                객체에 새로운 책임(기능)을 동적으로 추가합니다.
+                <br>기존 객체를 래핑합니다: <span class="code-snippet">new Armor(new Soldier())</span>.
+                <br>서브클래싱의 대안이 됩니다 (예: "ArmoredSoldier", "ArmoredShotgunSoldier"... 등 클래스 폭발 방지).
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * ------------------------------------------------------------------
+         * CORE INTERFACE (Concept)
+         * ------------------------------------------------------------------
+         * Component {
+         *   getAttack(): number
+         *   getDefense(): number
+         *   getDescription(): string
+         *   render(): HTMLDivElement
+         * }
+         */
+
+        // ------------------------------------------------------------------
+        // PROTOTYPE PATTERN: The Concrete Component & Prototype
+        // ------------------------------------------------------------------
+        class Unit {
+            constructor(type, icon, baseAttack, baseDefense) {
+                this.type = type;
+                this.icon = icon;
+                this.baseAttack = baseAttack;
+                this.baseDefense = baseDefense;
+                this.id = Math.floor(Math.random() * 10000); // Unique ID for instance tracking
+            }
+
+            // The core Prototype method
+            clone() {
+                // A true deep copy for primitive types. 
+                // For complex objects, you'd handle deep cloning here.
+                const cloned = new Unit(this.type, this.icon, this.baseAttack, this.baseDefense);
+                return cloned;
+            }
+
+            getAttack() { return this.baseAttack; }
+            getDefense() { return this.baseDefense; }
+            getDescription() { return this.type; }
+
+            // Rendering logic for the UI
+            render() {
+                const el = document.createElement('div');
+                el.className = 'unit spawning';
+                el.dataset.id = this.id;
+                el.innerHTML = `
+                    <div class="unit-avatar">
+                        ${this.icon}
+                        <!-- Decorator badges will go here via CSS/JS manipulation later if needed, 
+                             but pure decorators wrap the logic usually. We'll simulate visuals. -->
+                    </div>
+                    <div class="unit-name">${this.getDescription()}</div>
+                    <div class="unit-stats">
+                        <span style="color:#ff5555" title="Attack">⚔️ ${this.getAttack()}</span>
+                        <span style="color:#55aaff" title="Defense">🛡️ ${this.getDefense()}</span>
+                    </div>
+                `;
+                return el;
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // DECORATOR PATTERN: The Decorators
+        // ------------------------------------------------------------------
+        class UnitDecorator {
+            constructor(unit) {
+                this.unit = unit; // The wrapped component
+            }
+
+            getAttack() { return this.unit.getAttack(); }
+            getDefense() { return this.unit.getDefense(); }
+            getDescription() { return this.unit.getDescription(); }
+
+            // Pass-through for the render ID, as the identity remains the base unit
+            get id() { return this.unit.id; }
+        }
+
+        class WeaponAugment extends UnitDecorator {
+            constructor(unit, name, bonusAttack) {
+                super(unit);
+                this.name = name;
+                this.bonusAttack = bonusAttack;
+            }
+
+            getAttack() {
+                return super.getAttack() + this.bonusAttack;
+            }
+
+            getDescription() {
+                return `${super.getDescription()} + ${this.name}`;
+            }
+        }
+
+        class ArmorAugment extends UnitDecorator {
+            constructor(unit, name, bonusDefense) {
+                super(unit);
+                this.name = name;
+                this.bonusDefense = bonusDefense;
+            }
+
+            getDefense() {
+                return super.getDefense() + this.bonusDefense;
+            }
+
+            getDescription() {
+                return `${super.getDescription()} + ${this.name}`;
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // APP LOGIC & STATE
+        // ------------------------------------------------------------------
+        const App = {
+            prototypes: [
+                new Unit("경량 정찰병", "🕵️", 10, 5),
+                new Unit("중무장 보병", "💂", 25, 20),
+                new Unit("전투 드로이드", "🤖", 40, 40)
+            ],
+
+            decorators: [
+                { type: 'weapon', name: '플라즈마 소총', val: 15, icon: '🔫' },
+                { type: 'weapon', name: '고열 검', val: 25, icon: '🗡️' },
+                { type: 'armor', name: '나노 실드', val: 10, icon: '🛡️' },
+                { type: 'armor', name: '티탄 장갑', val: 30, icon: '🧱' }
+            ],
+
+            activeUnits: [], // list of Unit (or decorated Unit) objects
+            selectedUnitId: null,
+
+            init() {
+                this.renderPrototypes();
+                this.renderDecorators();
+                this.updateField();
+            },
+
+            // Renders the list of templates (Prototypes)
+            renderPrototypes() {
+                const container = document.getElementById('prototypeList');
+                this.prototypes.forEach(proto => {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `
+                        <div class="card-icon">${proto.icon}</div>
+                        <div class="card-info">
+                            <span class="card-title">${proto.type}</span>
+                            <span class="card-desc">⚔️ ${proto.baseAttack} | 🛡️ ${proto.baseDefense}</span>
+                        </div>
+                        <button class="btn btn-clone">복제</button>
+                    `;
+                    card.querySelector('button').onclick = () => this.handleClone(proto);
+                    container.appendChild(card);
+                });
+            },
+
+            // Renders the list of available augments (Decorators)
+            renderDecorators() {
+                const container = document.getElementById('decoratorList');
+                this.decorators.forEach(dec => {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `
+                        <div class="card-icon">${dec.icon}</div>
+                        <div class="card-info">
+                            <span class="card-title">${dec.name}</span>
+                            <span class="card-desc">${dec.type === 'weapon' ? '공격' : '방어'} +${dec.val} 추가</span>
+                        </div>
+                        <button class="btn btn-decorate" disabled>장착</button>
+                    `;
+                    // Store ref to button to enable/disable
+                    dec.btnRef = card.querySelector('button');
+                    dec.btnRef.onclick = () => this.handleDecorate(dec);
+                    container.appendChild(card);
+                });
+            },
+
+            handleClone(prototype) {
+                // PATTERN IN ACTION: Prototype
+                // We don't use 'new Unit(...)', we use .clone() on the template
+                const newUnit = prototype.clone();
+                this.activeUnits.push(newUnit);
+
+                // Auto-select the new unit
+                this.selectedUnitId = newUnit.id;
+
+                this.updateField();
+                this.updateUIState();
+            },
+
+            handleDecorate(augmentInfo) {
+                if (!this.selectedUnitId) return;
+
+                // Find index
+                const idx = this.activeUnits.findIndex(u => u.id === this.selectedUnitId);
+                if (idx === -1) return;
+
+                let targetUnit = this.activeUnits[idx];
+
+                // PATTERN IN ACTION: Decorator
+                // We wrap the existing object instance with a new class
+                if (augmentInfo.type === 'weapon') {
+                    targetUnit = new WeaponAugment(targetUnit, augmentInfo.name, augmentInfo.val);
+                } else {
+                    targetUnit = new ArmorAugment(targetUnit, augmentInfo.name, augmentInfo.val);
+                }
+
+                // Replace in array
+                this.activeUnits[idx] = targetUnit;
+
+                // Visual Flair: Add badge to the selected DOM element
+                this.addVisualAugment(augmentInfo.icon);
+
+                this.updateField();
+            },
+
+            addVisualAugment(icon) {
+                // Just for visual effect finding the current DOM node
+                // In a real framework (React), the render() method would handle this recursive structure
+                // Here we cheat slightly by re-rendering the whole field, but we *could* just inject DOM
+
+                // Because we re-render field immediately, we need a way to persist "visual badges" 
+                // In this simple demo, we'll let the render loop handle stats, 
+                // but we might lose the 'badges' unless we store them on the Unit object (or decorator)
+                // Let's modify the decorator class to store icons? 
+                // For simplicity in this demo, we'll assume the 'Unit' logic handles base render, 
+                // and we'll rely on the updateField to show new STATS, 
+                // but maybe we want to see the icons floating?
+
+                // Let's attach metadata to the object chain for rendering badges
+                // (Quick hack for the visual demo)
+                if (!this.activeUnits.find(u => u.id === this.selectedUnitId).visualBadges) {
+                    this.activeUnits.find(u => u.id === this.selectedUnitId).visualBadges = [];
+                }
+                this.activeUnits.find(u => u.id === this.selectedUnitId).visualBadges.push(icon);
+            },
+
+            updateField() {
+                const field = document.getElementById('field');
+                field.innerHTML = '';
+
+                this.activeUnits.forEach(unitObj => {
+                    // Logic to extract base properties + wrapped decorators
+                    // In a strict pattern, the Decorator would contain its own render(). 
+                    // Let's respect the pattern: we call unitObj.render()?
+                    // But our base Unit.render() is hardcoded. 
+                    // We can implement a recursive render or just render the component normally 
+                    // and update the text content with the specific stats from the wrapper.
+
+                    // 1. Render Base visual (we need the underlying ID/icon from the base unit)
+                    // We can crawl down the chain or just rely on the fact that decorators forward calls?
+                    // We didn't implement 'getIcon' on decorators, so let's navigate:
+                    let crawler = unitObj;
+                    while (crawler['unit']) { crawler = crawler.unit; } // find base
+
+                    // Use the base render
+                    const el = crawler.render();
+
+                    // 2. Update Stats (using the TOP LEVEL object which might be a decorator)
+                    const statBox = el.querySelector('.unit-stats');
+                    statBox.innerHTML = `
+                        <span style="color:#ff5555">⚔️ ${unitObj.getAttack()}</span>
+                        <span style="color:#55aaff">🛡️ ${unitObj.getDefense()}</span>
+                    `;
+
+                    // 3. Selection State
+                    if (unitObj.id === this.selectedUnitId) {
+                        el.classList.add('selected');
+                    }
+
+                    // 4. Visual Badges (Hack for visuals)
+                    // If the object chain (or base) has badges attached
+                    if (crawler.visualBadges) {
+                        const avatar = el.querySelector('.unit-avatar');
+                        crawler.visualBadges.forEach(icon => {
+                            const badge = document.createElement('div');
+                            badge.className = 'augment-badge';
+                            badge.innerText = icon;
+                            avatar.appendChild(badge);
+                        });
+                    }
+
+                    // Click to Select
+                    el.onclick = () => {
+                        this.selectedUnitId = unitObj.id;
+                        this.updateField();
+                        this.updateUIState();
+                    };
+
+                    field.appendChild(el);
+                });
+            },
+
+            updateUIState() {
+                // Enable/Disable Augment buttons based on selection
+                const hasSelection = this.selectedUnitId !== null;
+                this.decorators.forEach(dec => {
+                    if (dec.btnRef) {
+                        dec.btnRef.disabled = !hasSelection;
+                    }
+                });
+            }
+        };
+
+        // Boot
+        App.init();
+
+    </script>
+</body>
+
+</html>
